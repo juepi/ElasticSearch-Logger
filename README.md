@@ -3,7 +3,8 @@ PowerShell Script to gather data either from an MQTT Broker (polling Topics) or 
 The script should be started through a scheduled task (i.e. at system startup), it will run in an endless loop and will gather/import data every quarter of an hour.
 
 MQTT based readouts require a "Status" Topic for each sensor. The topic will be set to "DataUpdated" after a sensor has updated it's measurements successfully, and will be set to "DataObtained" after the ElasticSearch-Logger has obtained the data from the broker.
-This way it's possible to verify if the sensors are still working. All MQTT topics are retained, as the Sensors are only online for a short amount of time (see project "ESPEnvSens").
+This way it's possible to verify if the sensors are still working. If a sensor is found dead (i.e. the "Status" topic has not been set to "DataUpdated" for a configurable count of loops), the "Status" topic will be set to "SensorDead", which allows other subscribers to be alerted.
+All MQTT topics are retained, as the Sensors are only online for a short amount of time (see project "ESPEnvSens").
 FHEM based readouts use the "ActionDetector" Device to check if the read out device is "online". This might only work for my HomeMatic device (105155, heating radiator valve actuator).
 
 Software Requirements:
