@@ -22,6 +22,7 @@ $MQTT.Port = [int]'1883'
 $MQTT.ClientID = 'ES-Logger'
 $MQTT.StatusNewData = 'DataUpdated'
 $MQTT.StatusOldData = 'DataObtained'
+$MQTT.StatusSensorDead = 'SensorDead'
 $MQTT.Topic_Test = 'HB7/ES-Logger/Test'
 $MQTT.Topic_Out_Temp = 'HB7/Outdoor/Temp'
 $MQTT.Topic_Out_RH = 'HB7/Outdoor/RH'
@@ -67,8 +68,8 @@ $MailSubject="ElasticSearch-Logger "
 $MailText="ElasticSearch-Logger reports:`n`n"
 $MailSrv="***"
 $MailPort="25"
-$MailPass = ConvertTo-SecureString "MailPassHere" -AsPlainText -Force
-$MailCred = New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList "MailuserHere",$MailPass
+$MailPass = ConvertTo-SecureString "MailPasswordHere" -AsPlainText -Force
+$MailCred = New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList "MailUsernameHere",$MailPass
 #endregion
 
 # Ignore Sensor reading faults this number of times before throwing an exception (and mailing an error)
@@ -106,7 +107,7 @@ else
 # Start loop every 15 minutes
 while(WaitUntilFull15Minutes)
 {
-    # Verify if Sensor is online (Value published within last 30 minutes)
+    # Get Status of each Sensor
     try { [string]$SensOutStat = (Get-MqttTopic -Topic $MQTT.Topic_Out_Status) } catch { write-log -message ("Get-MqttTopic failed to fetch " + $MQTT.Topic_Out_Status + "; Exception: " + ($_.Exception.Message.ToString() -replace "`t|`n|`r"," ")) }
     try { [string]$SensWZStat = (Get-MqttTopic -Topic $MQTT.Topic_In_WZ_Status) } catch { write-log -message ("Get-MqttTopic failed to fetch " + $MQTT.Topic_In_WZ_Status + "; Exception: " + ($_.Exception.Message.ToString() -replace "`t|`n|`r"," ")) }
     try { [string]$HkOg1GnStat = (Get-Fhem-Readings -Device $FHEM.Device.AD -Reading $FHEM.Reading.AD_HkOg1Gn -Datatype string) } catch { write-log -message ("Get-Fhem-Readings failed to fetch data. Exception: " + ($_.Exception.Message.ToString() -replace "`t|`n|`r"," ")) }
@@ -131,6 +132,8 @@ while(WaitUntilFull15Minutes)
             # OUTDOOR Sensor obviously broken
             Send-Email -Type ERROR -Message ("ElasticSearch-Logger reports OUTDOOR sensor offline!`nProgram will exit.") -Priority high | Out-Null
             write-log -message "Main: OUTDOOR Sensor error triggered $($MaxErrors) times, Script stopped!"
+            # Update Status topic for sensor so other subscribers know that the sensor is dead
+            Set-MqttTopic -Topic $MQTT.Topic_Out_Status -Value $MQTT.StatusSensorDead -Retain
             Write-Error "Main: OUTDOOR Sensor error triggered $($MaxErrors) times, Script stopped!" -ErrorAction Stop
         }
     }
@@ -155,6 +158,8 @@ while(WaitUntilFull15Minutes)
             # INDOOR-WZ Sensor obviously broken
             Send-Email -Type ERROR -Message ("ElasticSearch-Logger reports INDOOR-WZ sensor offline!`nProgram will exit.") -Priority high | Out-Null
             write-log -message "Main: INDOOR-WZ Sensor error triggered $($MaxErrors) times, Script stopped!"
+            # Update Status topic for sensor so other subscribers know that the sensor is dead
+            Set-MqttTopic -Topic $MQTT.Topic_In_WZ_Status -Value $MQTT.StatusSensorDead -Retain
             Write-Error "Main: INDOOR-WZ Sensor error triggered $($MaxErrors) times, Script stopped!" -ErrorAction Stop
         }
     }
